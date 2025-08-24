@@ -2,32 +2,41 @@
 const express = require('express');
 const cors = require('cors');
 
-// In local dev you might use .env; on Vercel use Project Settings -> Environment Variables
+// Load .env only in local dev; on Vercel use Project Settings -> Environment Variables
 if (process.env.NODE_ENV !== 'production') {
   try { require('dotenv').config(); } catch {}
 }
 
 const app = express();
 
-app.use(cors({
+// CORS (frontend is on Hostinger; backend is on Vercel)
+const corsOptions = {
   origin: [
     'https://logozodev.com',
     'https://www.logozodev.com',
     'http://localhost:5173',
-    'http://localhost:3000'
+    'http://localhost:3000',
+    'http://127.0.0.1:5500',
+    'http://127.0.0.1:5501'
   ],
-  methods: ['GET', 'POST', 'DELETE', 'OPTIONS']
-}));
+  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: false
+};
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // handle preflight
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// health
-app.get('/api/health', (_req, res) => res.json({ ok: true, t: Date.now() }));
+// Health check -> reachable at /api/health
+app.get('/health', (_req, res) => {
+  res.json({ ok: true, t: Date.now() });
+});
 
-// your routes (controllers use contact_table already)
-app.use('/api', require('../routes/formRoute'));
+// IMPORTANT: do NOT prefix with /api here; Vercel already does it.
+// Your routes will be available at /api/<whatever-you-define>
+app.use('/', require('../routes/formRoute'));
 
-// Export Express app as a Vercel handler (NO app.listen here!)
+// Export the Express app (no app.listen on Vercel)
 module.exports = app;
-module.exports.handler = (req, res) => app(req, res);
