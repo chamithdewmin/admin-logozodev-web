@@ -1,13 +1,14 @@
+// routes/formRoute.js
 const router = require('express').Router();
 const ctrl = require('../controllers/smsController');
 
-// POST /api/send-sms  (Create + Auto-SMS)
-router.post('/send-sms', ctrl.sendSms);
+// Will be served at /api/send-sms (because of the Vercel rewrite + index mounting)
+router.post('/api/send-sms', ctrl.sendSms);
 
-// GET /api/messages   (List for admin)
-router.get('/messages', ctrl.getAllMessages);
+// Admin list messages: GET /api/messages
+router.get('/api/messages', ctrl.getAllMessages);
 
-// DELETE /api/messages/:id  (Admin delete)
-router.delete('/messages/:id', ctrl.deleteMessage);
+// Admin delete: DELETE /api/messages/:id
+router.delete('/api/messages/:id', ctrl.deleteMessage);
 
 module.exports = router;
