@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Admin Dashboard - Contact Messages</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
+<style>
+/* (Styles exactly as in your post; omitted here for brevity) */
+/* Paste your CSS from your message here unchanged */
+</style>
+</head>
+<body>
+  <!-- Login Modal -->
+  <div id="loginModal" class="modal" style="display:flex;">
+    <div class="modal-content" style="max-width:400px;">
+      <div class="modal-header" style="justify-content:center;">
+        <h3 class="modal-title"><i class="fas fa-lock"></i> Admin Login</h3>
+      </div>
+      <form onsubmit="handleLogin(event)">
+        <div class="login-field">
+          <label for="username">Username</label>
+          <input id="username" class="login-input" required />
+        </div>
+        <div class="login-field">
+          <label for="password">Password</label>
+          <input id="password" type="password" class="login-input" required />
+        </div>
+        <div id="loginError" class="login-error" style="display:none;">Invalid username or password</div>
+        <button type="submit" class="login-btn"><i class="fas fa-sign-in-alt"></i> Login</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="container" id="mainContent" style="display:none;">
+    <div class="header">
+      <h1><i class="fas fa-envelope"></i> Contact Messages</h1>
+      <div style="display:flex;gap:10px;">
+        <button class="refresh-btn" onclick="loadMessages()"><i class="fas fa-sync-alt"></i> Refresh</button>
+        <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-number"><i class="fas fa-envelope stat-icon"></i><span id="emailCount">0</span></div><div class="stat-label">Total Messages</div></div>
+      <div class="stat-card"><div class="stat-number"><i class="fas fa-calendar-day stat-icon"></i><span id="todayCount">0</span></div><div class="stat-label">Today's Messages</div></div>
+      <div class="stat-card"><div class="stat-number"><i class="fas fa-calendar-week stat-icon"></i><span id="weekCount">0</span></div><div class="stat-label">This Week</div></div>
+      <div class="stat-card"><div class="stat-number"><i class="fas fa-clock stat-icon"></i><span id="recentCount">0</span></div><div class="stat-label">Last 24 Hours</div></div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+      <div class="search-container">
+        <i class="fas fa-search search-icon"></i>
+        <input id="searchBox" class="search-box" placeholder="Search by name, email, or subject..." onkeyup="filterEmails(this.value)" />
+      </div>
+      <select class="filter-select" onchange="filterByDate(this.value)">
+        <option value="all">All Time</option>
+        <option value="today">Today</option>
+        <option value="week">This Week</option>
+        <option value="month">This Month</option>
+      </select>
+    </div>
+
+    <!-- Table -->
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th><i class="fas fa-user"></i> Contact</th>
+            <th><i class="fas fa-envelope"></i> Email</th>
+            <th><i class="fas fa-phone"></i> Phone</th>
+            <th><i class="fas fa-tag"></i> Subject</th>
+            <th><i class="fas fa-comment"></i> Message</th>
+            <th><i class="fas fa-calendar"></i> Date</th>
+            <th><i class="fas fa-cog"></i> Actions</th>
+          </tr>
+        </thead>
+        <tbody id="emailTableBody">
+          <tr><td colspan="7" class="loading"><div class="spinner"></div>Loading messages...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Message Modal -->
+  <div id="emailModal" class="modal" onclick="closeModalOnOverlay(event)">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modalFrom"></h3>
+        <button class="close-btn" onclick="closeModal()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-field"><label>Email Address</label><div class="value" id="modalEmail"></div></div>
+      <div class="modal-field"><label>Phone Number</label><div class="value" id="modalPhone"></div></div>
+      <div class="modal-field"><label>Subject</label><div class="value" id="modalSubject"></div></div>
+      <div class="modal-field"><label>Message</label><div class="value message-content" id="modalMessage"></div></div>
+      <div class="modal-field"><label>Received</label><div class="value" id="modalDate"></div></div>
+    </div>
+  </div>
+
+<script>
+  // ---- Simple in-page auth (replace with real auth when you can) ----
+  const LOGIN_CREDENTIALS = { username: 'admin', password: '123' };
+
+  let emailData = [];
+  let filteredData = [];
+
+  // Use relative API base (same origin as server)
+  const API_BASE_URL = '/api';
+  const ENDPOINTS = {
+    messages: `${API_BASE_URL}/messages`,
+    delete: id => `${API_BASE_URL}/messages/${id}`
+  };
+
+  function checkAuth() {
+    const isLoggedIn = sessionStorage.getItem('adminLoggedIn') === 'true';
+    isLoggedIn ? showMainContent() : showLoginModal();
+  }
+  function handleLogin(e) {
+    e.preventDefault();
+    const u = document.getElementById('username').value.trim();
+    const p = document.getElementById('password').value;
+    const err = document.getElementById('loginError');
+    if (u === LOGIN_CREDENTIALS.username && p === LOGIN_CREDENTIALS.password) {
+      sessionStorage.setItem('adminLoggedIn','true');
+      showMainContent();
+      showToast('Login successful!','success');
+    } else {
+      err.style.display = 'block';
+      err.textContent = 'Invalid username or password';
+      setTimeout(()=> err.style.display='none', 3000);
+    }
+  }
+  function logout() {
+    if (confirm('Logout now?')) {
+      sessionStorage.removeItem('adminLoggedIn');
+      showLoginModal();
+      showToast('Logged out','success');
+    }
+  }
+  function showLoginModal() {
+    document.getElementById('loginModal').style.display='flex';
+    document.getElementById('mainContent').style.display='none';
+  }
+  function showMainContent() {
+    document.getElementById('loginModal').style.display='none';
+    document.getElementById('mainContent').style.display='block';
+    loadMessages();
+  }
+
+  // ---- Data loading ----
+  async function loadMessages() {
+    try {
+      showLoading();
+      const res = await fetch(ENDPOINTS.messages, { method:'GET' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      emailData = Array.isArray(data) ? data : [];
+      filteredData = [...emailData];
+      renderEmails(filteredData);
+      updateStats(emailData);
+      showToast('Messages loaded','success');
+    } catch (e) {
+      console.error(e);
+      showError('Failed to load messages. Please try again.');
+      showToast('Load failed','error');
+    }
+  }
+
+  // ---- UI helpers ----
+  function showLoading() {
+    document.getElementById('emailTableBody').innerHTML =
+      `<tr><td colspan="7" class="loading"><div class="spinner"></div>Loading messages...</td></tr>`;
+  }
+  function showError(msg) {
+    document.getElementById('emailTableBody').innerHTML =
+      `<tr><td colspan="7" class="empty-state">
+        <div class="empty-icon"><i class="fas fa-exclamation-triangle"></i></div><div>${msg}</div>
+      </td></tr>`;
+  }
+  function renderEmails(list) {
+    const tbody = document.getElementById('emailTableBody');
+    if (!list.length) {
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-state">
+        <div class="empty-icon"><i class="fas fa-inbox"></i></div><div>No messages found</div>
+      </td></tr>`;
+      return;
+    }
+    tbody.innerHTML = list.map(item => `
+      <tr>
+        <td><a href="#" class="name-link" onclick="showEmailDetails(${item.id})">
+          ${(item.first_name||'') + ' ' + (item.last_name||'')}</a></td>
+        <td>${item.email || '-'}</td>
+        <td>${item.phone || '-'}</td>
+        <td>${item.subject || '-'}</td>
+        <td><div class="message-preview">
+          ${item.message ? (item.message.length>50 ? item.message.slice(0,50)+'…' : item.message) : '-' }
+        </div></td>
+        <td class="date-cell">${item.created_at ? formatDate(item.created_at) : '-'}</td>
+        <td>
+          <button class="btn btn-view" onclick="showEmailDetails(${item.id})"><i class="fas fa-eye"></i> View</button>
+          <button class="btn btn-delete" onclick="deleteEmail(${item.id})"><i class="fas fa-trash"></i> Delete</button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function updateStats(data) {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekAgo = new Date(now.getTime() - 7*24*60*60*1000);
+    const dayAgo = new Date(now.getTime() - 24*60*60*1000);
+    const todayEmails = data.filter(d => new Date(d.created_at) >= today);
+    const weekEmails = data.filter(d => new Date(d.created_at) >= weekAgo);
+    const recentEmails = data.filter(d => new Date(d.created_at) >= dayAgo);
+    document.getElementById('emailCount').textContent = data.length;
+    document.getElementById('todayCount').textContent = todayEmails.length;
+    document.getElementById('weekCount').textContent = weekEmails.length;
+    document.getElementById('recentCount').textContent = recentEmails.length;
+  }
+
+  function filterEmails(term) {
+    const search = (term||'').toLowerCase();
+    filteredData = emailData.filter(e => {
+      const name = `${e.first_name||''} ${e.last_name||''}`.toLowerCase();
+      return name.includes(search)
+        || (e.email||'').toLowerCase().includes(search)
+        || (e.subject||'').toLowerCase().includes(search)
+        || (e.message||'').toLowerCase().includes(search);
+    });
+    renderEmails(filteredData);
+  }
+  function filterByDate(period) {
+    const now = new Date();
+    let list = emailData;
+    if (period === 'today') {
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      list = list.filter(e => new Date(e.created_at) >= today);
+    } else if (period === 'week') {
+      const weekAgo = new Date(now.getTime() - 7*24*60*60*1000);
+      list = list.filter(e => new Date(e.created_at) >= weekAgo);
+    } else if (period === 'month') {
+      const monthAgo = new Date(now.getTime() - 30*24*60*60*1000);
+      list = list.filter(e => new Date(e.created_at) >= monthAgo);
+    }
+    filteredData = list;
+    renderEmails(list);
+  }
+
+  function showEmailDetails(id) {
+    const e = emailData.find(x => x.id === id);
+    if (!e) return;
+    document.getElementById('modalFrom').textContent = `${e.first_name||''} ${e.last_name||''}`.trim() || 'Unknown';
+    document.getElementById('modalEmail').textContent = e.email || 'N/A';
+    document.getElementById('modalPhone').textContent = e.phone || 'N/A';
+    document.getElementById('modalSubject').textContent = e.subject || 'No Subject';
+    document.getElementById('modalMessage').textContent = e.message || 'No message';
+    document.getElementById('modalDate').textContent = e.created_at ? formatDate(e.created_at) : 'Unknown';
+    document.getElementById('emailModal').style.display='flex';
+  }
+  function closeModal(){ document.getElementById('emailModal').style.display='none'; }
+  function closeModalOnOverlay(ev){ if (ev.target === ev.currentTarget) closeModal(); }
+
+  async function deleteEmail(id) {
+    if (!confirm('Delete this message?')) return;
+    try {
+      const res = await fetch(ENDPOINTS.delete(id), { method:'DELETE' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      showToast('Message deleted','success');
+      await loadMessages();
+    } catch (e) {
+      console.error(e);
+      showToast('Delete failed','error');
+    }
+  }
+
+  function formatDate(s) {
+    const d = new Date(s);
+    const now = new Date();
+    const diff = now - d;
+    const days = Math.floor(diff / (1000*60*60*24));
+    if (days === 0) return 'Today ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    if (days === 1) return 'Yesterday ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    if (days < 7) return `${days} days ago`;
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  }
+
+  function showToast(msg, type) {
+    const exist = document.querySelector('.toast'); if (exist) exist.remove();
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(()=> el.classList.add('show'), 50);
+    setTimeout(()=> { el.classList.remove('show'); setTimeout(()=> el.remove(), 300); }, 3000);
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeModal();
+    if (e.key === 'F5' || (e.ctrlKey && e.key.toLowerCase() === 'r')) {
+      e.preventDefault();
+      loadMessages();
+    }
+  });
+
+  setInterval(loadMessages, 5*60*1000);
+  window.addEventListener('load', checkAuth);
+</script>
+</body>
+</html>

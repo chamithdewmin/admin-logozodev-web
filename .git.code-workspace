@@ -1,0 +1,26 @@
+{
+	"folders": [
+		{
+			"path": "../.git"
+		},
+		{
+			"path": "../.vscode"
+		},
+		{
+			"path": "../__MACOSX"
+		},
+		{
+			"path": "."
+		},
+		{
+			"path": "../docs"
+		},
+		{
+			"path": "../files"
+		}
+	],
+	"settings": {
+		"liveServer.settings.multiRootWorkspaceName": "files",
+		"liveServer.settings.port": 5502
+	}
+}
